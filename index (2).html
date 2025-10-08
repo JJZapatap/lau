@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Control Charts (X̄–R / X̄–S)</title>
+  <style>
+    :root { --fg:#0f172a; --muted:#475569; --accent:#2563eb; --ok:#16a34a; --warn:#dc2626; --bg:#ffffff; }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto;}
+    header{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:12px;}
+    h1{font-size:18px;margin:0;}
+    .wrap{max-width:1000px;margin:0 auto;padding:16px;}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px;}
+    @media(min-width:960px){ .grid{grid-template-columns:1fr 1fr;} }
+    .card{border:1px solid #e2e8f0;border-radius:12px;padding:14px;}
+    .muted{color:var(--muted);font-size:13px;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+    svg{width:100%;height:280px;display:block;}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e2e8f0;margin-right:6px;}
+    .ooc{color:var(--warn);}
+    .btn{display:inline-block;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;}
+    .btn:active{transform:translateY(1px);}
+    details{border:1px dashed #e2e8f0;border-radius:10px;padding:10px;}
+    summary{cursor:pointer;}
+    footer{padding:16px 20px;color:#64748b;font-size:12px;}
+    .small{font-size:12px;}
+    .mt8{margin-top:8px;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Control Charts • X̄–R / X̄–S</h1>
+    <span class="pill">Asset local (WebViewer)</span>
+    <span id="status" class="pill">esperando payload…</span>
+  </header>
+  <div class="wrap">
+    <p class="muted">Envíame un <span class="mono">WebViewString</span> con JSON: <span class="mono">{ n, m, lsl, usl, raw }</span>. Si <span class="mono">raw</span> va vacío, simulo datos con μ=100 y σ=2.</p>
+
+    <div class="card">
+      <div id="summary"></div>
+      <div id="ooc"></div>
+      <div class="mt8">
+        <button class="btn" id="btnCsv">Generar CSV y devolverlo a AppInventor</button>
+        <span class="muted small">Recibirás el CSV por <span class="mono">WebViewString</span> (prefijo <span class="mono">CSV::</span>)</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Carta R</h3><svg id="svgR"></svg></div>
+      <div class="card"><h3>Carta X̄ (basada en R)</h3><svg id="svgXR"></svg></div>
+      <div class="card"><h3>Carta S</h3><svg id="svgS"></svg></div>
+      <div class="card"><h3>Carta X̄ (basada en S)</h3><svg id="svgXS"></svg></div>
+    </div>
+
+    <details class="mt8">
+      <summary>Ver datos procesados</summary>
+      <pre class="small mono" id="debug"></pre>
+    </details>
+  </div>
+  <footer class="wrap">Hecho para App Inventor / Kodular • Usa constantes AIAG por n (2–10).</footer>
+
+<script>
+/** Utilidades **/
+function mean(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
+function stdevSample(a){
+  const m = mean(a);
+  const s2 = a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1);
+  return Math.sqrt(s2);
+}
+function min(a){ return Math.min.apply(null,a); }
+function max(a){ return Math.max.apply(null,a); }
+function rnd(x){ return Math.round(x*10000)/10000; }
+
+/** Constantes por n **/
+const CONSTS = {
+  2:{d2:1.128,c4:0.7979,A2:1.880,D3:0.000,D4:3.267,A3:2.659,B3:0.000,B4:3.267},
+  3:{d2:1.693,c4:0.8862,A2:1.023,D3:0.000,D4:2.574,A3:1.954,B3:0.000,B4:2.568},
+  4:{d2:2.059,c4:0.9213,A2:0.729,D3:0.000,D4:2.282,A3:1.628,B3:0.000,B4:2.266},
+  5:{d2:2.326,c4:0.9400,A2:0.577,D3:0.000,D4:2.114,A3:1.427,B3:0.000,B4:2.089},
+  6:{d2:2.534,c4:0.9515,A2:0.483,D3:0.000,D4:2.004,A3:1.287,B3:0.030,B4:1.970},
+  7:{d2:2.704,c4:0.9594,A2:0.419,D3:0.076,D4:1.924,A3:1.182,B3:0.118,B4:1.882},
+  8:{d2:2.847,c4:0.9650,A2:0.373,D3:0.136,D4:1.864,A3:1.099,B3:0.185,B4:1.815},
+  9:{d2:2.970,c4:0.9693,A2:0.337,D3:0.184,D4:1.816,A3:1.032,B3:0.239,B4:1.761},
+ 10:{d2:3.078,c4:0.9727,A2:0.308,D3:0.223,D4:1.777,A3:0.975,B3:0.284,B4:1.716}
+};
+
+/** Simulación normal simple (suma de 12 U[0,1] - 6) **/
+function randn(){ let r=0; for(let i=0;i<12;i++) r+=Math.random(); return r-6; }
+function simulate(m,n,mu=100,sigma=2){
+  const out=[];
+  for(let i=0;i<m;i++){
+    const row=[];
+    for(let j=0;j<n;j++) row.push(mu + sigma*randn());
+    out.push(row);
+  }
+  return out;
+}
+
+/** Parsing datos en texto **/
+function parseRawIntoGroups(raw,m,n){
+  const norm = raw.replace(/\\n|;|,/g,' ').trim().split(/\\s+/).filter(Boolean).map(Number);
+  if (norm.some(x=>Number.isNaN(x))) throw new Error("Se detectaron valores no numéricos.");
+  if (norm.length < m*n) throw new Error("Faltan datos para completar m subgrupos de tamaño n.");
+  const out=[];
+  for(let i=0;i<m;i++){
+    out.push(norm.slice(i*n,(i+1)*n));
+  }
+  return out;
+}
+
+/** Cálculo central **/
+function computeAll(data, n, m, lsl, usl){
+  const C = CONSTS[n];
+  if(!C) throw new Error("n no soportado (use 2–10).");
+
+  const xbar = data.map(g=>mean(g));
+  const R = data.map(g=>max(g)-min(g));
+  const S = data.map(g=>stdevSample(g));
+
+  const xbarbar = mean(xbar);
+  const Rbar = mean(R);
+  const Sbar = mean(S);
+
+  // Límites Xbar-R
+  const UCL_R = C.D4 * Rbar, LCL_R = C.D3 * Rbar;
+  const UCL_XR = xbarbar + C.A2*Rbar, LCL_XR = xbarbar - C.A2*Rbar;
+
+  // Límites Xbar-S
+  const UCL_S = C.B4 * Sbar, LCL_S = C.B3 * Sbar;
+  const UCL_XS = xbarbar + C.A3*Sbar, LCL_XS = xbarbar - C.A3*Sbar;
+
+  // Fuera de control
+  const idx = [...Array(m).keys()].map(i=>i+1);
+  const ooc_R  = idx.filter(i=> R[i-1]  > UCL_R || R[i-1]  < LCL_R);
+  const ooc_XR = idx.filter(i=> xbar[i-1] > UCL_XR || xbar[i-1] < LCL_XR);
+  const ooc_S  = idx.filter(i=> S[i-1]  > UCL_S || S[i-1]  < LCL_S);
+  const ooc_XS = idx.filter(i=> xbar[i-1] > UCL_XS || xbar[i-1] < LCL_XS);
+
+  // Capacidad
+  const sigma_R = Rbar / C.d2;
+  const sigma_S = Sbar / C.c4;
+  const Cp_R  = (usl - lsl) / (6*sigma_R);
+  const Cpl_R = (xbarbar - lsl) / (3*sigma_R);
+  const Cpu_R = (usl - xbarbar) / (3*sigma_R);
+  const Cpk_R = Math.min(Cpl_R, Cpu_R);
+
+  const Cp_S  = (usl - lsl) / (6*sigma_S);
+  const Cpl_S = (xbarbar - lsl) / (3*sigma_S);
+  const Cpu_S = (usl - xbarbar) / (3*sigma_S);
+  const Cpk_S = Math.min(Cpl_S, Cpu_S);
+
+  return {
+    xbar,R,S,xbarbar,Rbar,Sbar,
+    UCL_R,LCL_R,UCL_XR,LCL_XR,
+    UCL_S,LCL_S,UCL_XS,LCL_XS,
+    ooc_R,ooc_XR,ooc_S,ooc_XS,
+    sigma_R,Cp_R,Cpk_R,Cpl_R,Cpu_R,
+    sigma_S,Cp_S,Cpk_S,Cpl_S,Cpu_S
+  };
+}
+
+/** Dibujar gráfico simple Line+Limits en SVG **/
+function drawChart(svgEl, series, center, lcl, ucl){
+  const w = svgEl.clientWidth, h = svgEl.clientHeight, pad=30;
+  const n = series.length;
+  const x = i => pad + (w-2*pad) * (i/(n-1));
+  const ymin = Math.min(lcl, ...series);
+  const ymax = Math.max(ucl, ...series);
+  const y = v => h-pad - (h-2*pad) * ((v - ymin) / (ymax - ymin || 1));
+
+  svgEl.innerHTML='';
+  const svgns='http://www.w3.org/2000/svg';
+
+  function line(x1,y1,x2,y2,cls){
+    const L=document.createElementNS(svgns,'line');
+    L.setAttribute('x1',x1);L.setAttribute('y1',y1);
+    L.setAttribute('x2',x2);L.setAttribute('y2',y2);
+    L.setAttribute('stroke',cls||'#334155');L.setAttribute('stroke-width','1.5');
+    L.setAttribute('stroke-dasharray','6 4');
+    svgEl.appendChild(L);
+  }
+  // Límites
+  line(pad,y(center),w-pad,y(center),'#64748b');
+  line(pad,y(lcl),w-pad,y(lcl),'#9ca3af');
+  line(pad,y(ucl),w-pad,y(ucl),'#9ca3af');
+
+  // Serie
+  const path=document.createElementNS(svgns,'path');
+  let d='';
+  series.forEach((v,i)=>{
+    const X=x(i), Y=y(v);
+    d += (i===0?`M ${X} ${Y}`:` L ${X} ${Y}`);
+  });
+  path.setAttribute('d',d);
+  path.setAttribute('fill','none');
+  path.setAttribute('stroke','#0f766e');
+  path.setAttribute('stroke-width','2');
+  svgEl.appendChild(path);
+
+  // Puntos
+  series.forEach((v,i)=>{
+    const c=document.createElementNS(svgns,'circle');
+    c.setAttribute('cx',x(i)); c.setAttribute('cy',y(v));
+    c.setAttribute('r',3);
+    c.setAttribute('fill','#0ea5e9');
+    svgEl.appendChild(c);
+  });
+}
+
+/** Render y bucle de integración con WebViewer **/
+let lastPayload = '';
+let lastResult = null;
+
+function processPayload(obj){
+  const n = Number(obj.n), m = Number(obj.m);
+  const lsl = Number(obj.lsl), usl = Number(obj.usl);
+  if(!(n>=2 && n<=10 && m>=2 && usl>lsl)) throw new Error("Parámetros inválidos.");
+
+  let data;
+  if(!obj.raw || obj.raw.trim()===''){
+    data = simulate(m,n,100,2);
+  }else{
+    data = parseRawIntoGroups(obj.raw,m,n);
+  }
+  const res = computeAll(data,n,m,lsl,usl);
+  lastResult = {data,params:{n,m,lsl,usl},res};
+  renderAll(lastResult);
+}
+
+function renderAll(state){
+  const {data, params, res} = state;
+  const m = params.m;
+
+  // Resumen textual
+  const s = document.getElementById('summary');
+  s.innerHTML =
+  `<div class="small">
+    <div>m=${m}, n=${params.n}</div>
+    <div>X̄̄=${rnd(res.xbarbar)} &nbsp; R̄=${rnd(res.Rbar)} &nbsp; S̄=${rnd(res.Sbar)}</div>
+    <div>X̄–R: LCLx=${rnd(res.LCL_XR)}, UCLx=${rnd(res.UCL_XR)} | LCLr=${rnd(res.LCL_R)}, UCLr=${rnd(res.UCL_R)}</div>
+    <div>X̄–S: LCLx=${rnd(res.LCL_XS)}, UCLx=${rnd(res.UCL_XS)} | LCLs=${rnd(res.LCL_S)}, UCLs=${rnd(res.UCL_S)}</div>
+    <div>Capacidad σ̂(R)=${rnd(res.sigma_R)} → Cp=${rnd(res.Cp_R)}, Cpk=${rnd(res.Cpk_R)}</div>
+    <div>Capacidad σ̂(S)=${rnd(res.sigma_S)} → Cp=${rnd(res.Cp_S)}, Cpk=${rnd(res.Cpk_S)}</div>
+  </div>`;
+
+  const ooc = document.getElementById('ooc');
+  const fmt = a => a.length? a.join(', ') : '—';
+  ooc.innerHTML =
+    `<div class="small">
+       <span class="pill">OOC R: <b class="ooc">${fmt(res.ooc_R)}</b></span>
+       <span class="pill">OOC X̄(R): <b class="ooc">${fmt(res.ooc_XR)}</b></span>
+       <span class="pill">OOC S: <b class="ooc">${fmt(res.ooc_S)}</b></span>
+       <span class="pill">OOC X̄(S): <b class="ooc">${fmt(res.ooc_XS)}</b></span>
+     </div>`;
+
+  // Gráficos
+  drawChart(document.getElementById('svgR'), res.R, res.Rbar, res.LCL_R, res.UCL_R);
+  drawChart(document.getElementById('svgXR'), res.xbar, res.xbarbar, res.LCL_XR, res.UCL_XR);
+  drawChart(document.getElementById('svgS'), res.S, res.Sbar, res.LCL_S, res.UCL_S);
+  drawChart(document.getElementById('svgXS'), res.xbar, res.xbarbar, res.LCL_XS, res.UCL_XS);
+
+  document.getElementById('debug').textContent = JSON.stringify(state,null,2);
+}
+
+/** CSV hacia App Inventor **/
+function buildCSV(state){
+  const {data,params,res} = state;
+  const m = params.m, n = params.n;
+  const lines = [];
+  lines.push("Subgrupo,Xbar,R,S");
+  for(let i=0;i<m;i++){
+    lines.push([i+1, rnd(res.xbar[i]), rnd(res.R[i]), rnd(res.S[i])].join(","));
+  }
+  lines.push("");
+  lines.push("Métricas,Valor");
+  const met = {
+    "Xbarbar":res.xbarbar,"Rbar":res.Rbar,"Sbar":res.Sbar,
+    "LCL_R":res.LCL_R,"UCL_R":res.UCL_R,"LCL_Xbar(R)":res.LCL_XR,"UCL_Xbar(R)":res.UCL_XR,
+    "LCL_S":res.LCL_S,"UCL_S":res.UCL_S,"LCL_Xbar(S)":res.LCL_XS,"UCL_Xbar(S)":res.UCL_XS,
+    "sigma_hat_R":res.sigma_R,"Cp_R":res.Cp_R,"Cpk_R":res.Cpk_R,"Cpl_R":res.Cpl_R,"Cpu_R":res.Cpu_R,
+    "sigma_hat_S":res.sigma_S,"Cp_S":res.Cp_S,"Cpk_S":res.Cpk_S,"Cpl_S":res.Cpl_S,"Cpu_S":res.Cpu_S
+  };
+  Object.entries(met).forEach(([k,v])=>lines.push(`${k},${rnd(v)}`));
+  return lines.join("\\n");
+}
+
+document.getElementById('btnCsv').addEventListener('click', ()=>{
+  if(!lastResult) return;
+  const csv = buildCSV(lastResult);
+  if(window.AppInventor && window.AppInventor.setWebViewString){
+    window.AppInventor.setWebViewString("CSV::"+csv);
+  }
+  alert("CSV enviado a la app por WebViewString (prefijo CSV::).");
+});
+
+/** Loop de escucha de WebViewString desde la app **/
+let statusEl = document.getElementById('status');
+setInterval(()=>{
+  try{
+    if(!(window.AppInventor && window.AppInventor.getWebViewString)) return;
+    const s = window.AppInventor.getWebViewString();
+    if(!s || s===lastPayload) return;
+    lastPayload = s;
+    if(s.startsWith("{")){
+      const obj = JSON.parse(s);
+      if(obj.clear){ lastResult=null; document.getElementById('summary').innerHTML=""; return; }
+      processPayload(obj);
+      statusEl.textContent = "payload OK";
+    }else if(s.startsWith("PING")){
+      window.AppInventor.setWebViewString("PONG");
+    }
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = "error: "+e.message;
+  }
+}, 250);
+
+// Autostart demo si se abre en un navegador
+window.addEventListener('load', ()=>{
+  if(!(window.AppInventor && window.AppInventor.getWebViewString)){
+    // demo local
+    processPayload({n:5,m:25,lsl:95,usl:105,raw:""});
+    statusEl.textContent = "demo local";
+  }
+});
+</script>
+</body>
+</html>
