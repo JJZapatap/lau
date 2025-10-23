@@ -6,27 +6,18 @@
   <title>Aplicación de Gráficos de Control (X̄–R / X̄–S)</title>
   <style>
     :root{
-      --fg:#0f172a; --muted:#475569; --accent:#2563eb; --ok:#16a34a; --warn:#dc2626; --bg:#ffffff;
+      --fg:#0f172a; --muted:#475569; --bg:#ffffff;
+      --ok:#16a34a; --warn:#dc2626;
       --uni-blue:#0a3a67; --gold:#d4a017;
     }
     html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto;}
 
-    /* ===== Banner U. del Magdalena ===== */
-    .uni-banner{
-      background:var(--uni-blue);
-      color:#fff;
-      padding:18px 20px 12px;
-    }
-    .uni-banner__inner{
-      max-width:1100px;margin:0 auto;
-      display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap;
-    }
+    /* ===== Banner ===== */
+    .uni-banner{background:var(--uni-blue);color:#fff;padding:18px 20px 12px;}
+    .uni-banner__inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap;}
     .uni-banner__text h2{margin:0;font-size:20px;letter-spacing:.4px}
     .uni-banner__text p{margin:4px 0 0;font-size:13px;opacity:.95}
-    .uni-banner__art{
-      max-width:180px; height:auto; display:block;
-      filter: drop-shadow(0 4px 10px rgba(0,0,0,.25));
-    }
+    .uni-banner__art{max-width:180px;height:auto;display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,.25));}
     .uni-banner__goldbar{height:4px;background:var(--gold);}
 
     /* ===== App layout ===== */
@@ -40,7 +31,6 @@
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
     svg{width:100%;height:280px;display:block;}
     .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e2e8f0;margin-right:6px;}
-    .ooc{color:var(--warn);}
     .btn{display:inline-block;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;}
     .btn:active{transform:translateY(1px);}
     details{border:1px dashed #e2e8f0;border-radius:10px;padding:10px;}
@@ -50,7 +40,7 @@
     .mt8{margin-top:8px;}
     .inputs{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     .inputs label{font-size:12px;color:#334155}
-    .inputs input, .inputs select{padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px}
+    .inputs input{padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px;min-width:160px}
     .danger{color:var(--warn)}
     .success{color:var(--ok)}
     .drop{border:1.5px dashed #94a3b8;border-radius:10px;padding:20px;text-align:center;color:#64748b}
@@ -65,7 +55,6 @@
         <h2>UNIVERSIDAD DEL MAGDALENA</h2>
         <p>Facultad de Ingeniería Industrial · Control Estadístico de Procesos</p>
       </div>
-      <!-- Gráfico/Ilustración -->
       <img src="monitor.png" alt="Monitor de gráficos de control" class="uni-banner__art">
     </div>
     <div class="uni-banner__goldbar"></div>
@@ -81,11 +70,12 @@
     <!-- 1. Carga de datos -->
     <div class="card">
       <h3>1. Carga de datos</h3>
-      <div class="drop">
+      <div class="drop" id="dropZone">
         Arrastra o selecciona tu archivo <b>CSV</b> aquí
         <div class="mt8"><input id="fileCsv" type="file" accept=".csv,text/csv"></div>
       </div>
-      <p class="muted mt8">Formato recomendado: cada <b>fila</b> es un subgrupo y cada columna una observación (n entre 2–10). Si viene al revés, lo detecto y lo roto automáticamente.</p>
+      <p class="muted mt8" id="fileStatus">Esperando archivo…</p>
+      <p class="muted">Formato recomendado: cada <b>fila</b> es un subgrupo y cada columna una observación (n entre 2–10). Si viene al revés, lo detecto y lo roto automáticamente.</p>
     </div>
 
     <!-- 2. Configuración -->
@@ -100,9 +90,8 @@
           <label>Límite superior (USL)</label><br>
           <input id="usl" type="number" step="any" placeholder="Ej. 41.0">
         </div>
-
-        <button class="btn" id="btnEjemplo">Probar con datos ejemplo</button>        
         <button class="btn" id="btnProcesar">Generar gráficos</button>
+        <button class="btn" id="btnEjemplo">Probar con datos ejemplo</button>
       </div>
       <div id="summary" class="mt8"></div>
       <div id="ooc" class="mt8"></div>
@@ -137,6 +126,7 @@ const CONSTS = {
   9:{d2:2.970,c4:0.9693,A2:0.337,D3:0.184,D4:1.816,A3:1.032,B3:0.239,B4:1.761},
  10:{d2:3.078,c4:0.9727,A2:0.308,D3:0.223,D4:1.777,A3:0.975,B3:0.284,B4:1.716}
 };
+const $ = id => document.getElementById(id);
 function mean(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
 function stdevSample(a){ const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/(a.length-1)); }
 function min(a){ return Math.min.apply(null,a); }
@@ -144,59 +134,59 @@ function max(a){ return Math.max.apply(null,a); }
 function rnd(x, k=4){ return Math.round(x*Math.pow(10,k))/Math.pow(10,k); }
 function transpose(m){ return m[0].map((_,i)=>m.map(r=>r[i])); }
 
-/* ====== Parse CSV ====== */
-function detectSep(line){
-  const c = {',': (line.match(/,/g)||[]).length,
-             ';': (line.match(/;/g)||[]).length,
-             '\t': (line.match(/\t/g)||[]).length};
-  return Object.entries(c).sort((a,b)=>b[1]-a[1])[0][0];
+/* ===================== PARSE CSV ROBUSTO ===================== */
+function detectSepBySample(lines){
+  const sample = lines.slice(0, Math.min(lines.length, 10));
+  const score = { ',':0, ';':0, '\t':0 };
+  sample.forEach(l=>{
+    score[','] += (l.match(/,/g)||[]).length;
+    score[';'] += (l.match(/;/g)||[]).length;
+    score['\t']+= (l.match(/\t/g)||[]).length;
+  });
+  return Object.entries(score).sort((a,b)=>b[1]-a[1])[0][0];
+}
+function toNumberToken(tok, sep){
+  let s = tok.trim().replace(/\s+/g,'');
+  // Normalizaciones típicas para coma decimal y miles
+  if(sep === ';'){ s = s.replace(/\./g,''); s = s.replace(',', '.'); }
+  else if(sep === ','){ if(/\d+\.\d+,\d+/.test(s)) s = s.replace(/\./g,'').replace(',', '.'); }
+  else { if(/^\d+,\d+$/.test(s)) s = s.replace(',', '.'); }
+  const v = Number(s);
+  return Number.isFinite(v) ? v : NaN;
 }
 function parseCSV(text){
-  const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length>0);
+  const lines = text.split(/\r?\n/).filter(s=>s.trim().length>0);
   if(!lines.length) throw new Error("CSV vacío.");
-  const sep = detectSep(lines[0]);
-  const rows = lines.map(row=>{
-    return row.split(sep).map(tok=>{
-      // Si separador es ';', asumir decimales con ',' -> convertir a '.'
-      const t = (sep===';') ? tok.replace(',', '.') : tok;
-      const v = Number(t.trim());
-      return Number.isFinite(v) ? v : NaN;
-    });
-  });
-  // eliminar filas totalmente NaN
+  const sep = detectSepBySample(lines);
+  const rows = lines.map(row => row.split(sep).map(tok => toNumberToken(tok, sep)));
   const filtered = rows.filter(r=>r.some(v=>Number.isFinite(v)));
+  if(!filtered.length) throw new Error("No se detectaron valores numéricos.");
   const mlen = Math.max(...filtered.map(r=>r.filter(Number.isFinite).length));
   const matrix = filtered.map(r=>r.filter(Number.isFinite).slice(0, mlen));
-  if(!matrix.length || !mlen) throw new Error("No se detectaron valores numéricos.");
   return matrix;
 }
 
-/* Orientación: filas=subgrupos si columnas (n) en [2..10]; si no, probar transponer */
+/* ===================== ORIENTACIÓN ===================== */
 function orientGroups(mat){
   const m = mat.length, n = mat[0].length;
   if(n>=2 && n<=10 && m>=2) return {data: mat, n, m, mode:"filas=subgrupos"};
   const t = transpose(mat);
   const m2 = t.length, n2 = t[0].length;
   if(n2>=2 && n2<=10 && m2>=2) return {data: t, n: n2, m: m2, mode:"columnas=subgrupos (transpuesto)"};
-  // Fallback: recortar a n=10 si es enorme
   const nFix = Math.min(n, 10);
   const fixed = mat.map(r=>r.slice(0,nFix)).filter(r=>r.length===nFix);
   if(!(nFix>=2)) throw new Error("No se pudo determinar n válido (2–10).");
   return {data: fixed, n:nFix, m:fixed.length, mode:"fallback"};
 }
 
-/* ====== Cálculos CEP ====== */
+/* ===================== CÁLCULOS CEP ===================== */
 function computeAll(data, n, m, lsl, usl){
   const C = CONSTS[n];
   if(!C) throw new Error("n no soportado (use 2–10).");
-
   const xbar = data.map(g=>mean(g));
   const R = data.map(g=>max(g)-min(g));
   const S = data.map(g=>stdevSample(g));
-
-  const xbarbar = mean(xbar);
-  const Rbar = mean(R);
-  const Sbar = mean(S);
+  const xbarbar = mean(xbar), Rbar = mean(R), Sbar = mean(S);
 
   // Límites X̄–R
   const UCL_R = C.D4 * Rbar, LCL_R = C.D3 * Rbar;
@@ -213,34 +203,23 @@ function computeAll(data, n, m, lsl, usl){
   const ooc_S  = idx.filter(i=> S[i-1]  > UCL_S || S[i-1]  < LCL_S);
   const ooc_XS = idx.filter(i=> xbar[i-1] > UCL_XS || xbar[i-1] < LCL_XS);
 
-  // Capacidad (si hay LSL/USL)
-  let cap = null;
+  // Capacidad opcional
+  let cap=null;
   if(Number.isFinite(lsl) && Number.isFinite(usl) && usl>lsl){
-    const sigma_R = Rbar / C.d2;
-    const sigma_S = Sbar / C.c4;
+    const sigma_R = Rbar / C.d2, sigma_S = Sbar / C.c4;
     const Cp_R  = (usl - lsl) / (6*sigma_R);
-    const Cpl_R = (xbarbar - lsl) / (3*sigma_R);
-    const Cpu_R = (usl - xbarbar) / (3*sigma_R);
-    const Cpk_R = Math.min(Cpl_R, Cpu_R);
-
+    const Cpk_R = Math.min((xbarbar - lsl)/(3*sigma_R), (usl - xbarbar)/(3*sigma_R));
     const Cp_S  = (usl - lsl) / (6*sigma_S);
-    const Cpl_S = (xbarbar - lsl) / (3*sigma_S);
-    const Cpu_S = (usl - xbarbar) / (3*sigma_S);
-    const Cpk_S = Math.min(Cpl_S, Cpu_S);
-
-    cap = { sigma_R, Cp_R, Cpk_R, Cpl_R, Cpu_R, sigma_S, Cp_S, Cpk_S, Cpl_S, Cpu_S };
+    const Cpk_S = Math.min((xbarbar - lsl)/(3*sigma_S), (usl - xbarbar)/(3*sigma_S));
+    cap = {sigma_R,Cp_R,Cpk_R,sigma_S,Cp_S,Cpk_S};
   }
 
-  return {
-    xbar,R,S,xbarbar,Rbar,Sbar,
-    UCL_R,LCL_R,UCL_XR,LCL_XR,
-    UCL_S,LCL_S,UCL_XS,LCL_XS,
-    ooc_R,ooc_XR,ooc_S,ooc_XS,
-    capacidad: cap
-  };
+  return { xbar,R,S,xbarbar,Rbar,Sbar,
+           UCL_R,LCL_R,UCL_XR,LCL_XR,UCL_S,LCL_S,UCL_XS,LCL_XS,
+           ooc_R,ooc_XR,ooc_S,ooc_XS, capacidad: cap };
 }
 
-/* ====== Gráficos (SVG simple) ====== */
+/* ===================== GRAFICADOR (SVG) ===================== */
 function drawChart(svgEl, series, center, lcl, ucl){
   const w = svgEl.clientWidth, h = svgEl.clientHeight, pad=30;
   const n = series.length;
@@ -250,7 +229,6 @@ function drawChart(svgEl, series, center, lcl, ucl){
 
   svgEl.innerHTML='';
   const svgns='http://www.w3.org/2000/svg';
-
   const hline=(yy,color,hdash)=>{
     const L=document.createElementNS(svgns,'line');
     L.setAttribute('x1',pad);L.setAttribute('y1',yy);
@@ -277,30 +255,26 @@ function drawChart(svgEl, series, center, lcl, ucl){
   });
 }
 
-/* ====== Runtime / UI ====== */
+/* ===================== RENDER & UI ===================== */
 let lastState = null;
 
 function renderAll(state){
   const {params, res} = state;
   const cap = res.capacidad;
-  const s = document.getElementById('summary');
-  s.innerHTML =
-  `<div class="small">
-    <div><b>m</b>=${params.m}, <b>n</b>=${params.n} <span class="muted">(orientación: ${params.mode})</span></div>
-    <div>X̄̄=${rnd(res.xbarbar)} &nbsp; R̄=${rnd(res.Rbar)} &nbsp; S̄=${rnd(res.Sbar)}</div>
-    <div>X̄–R: LCLx=${rnd(res.LCL_XR)}, UCLx=${rnd(res.UCL_XR)} | LCLr=${rnd(res.LCL_R)}, UCLr=${rnd(res.UCL_R)}</div>
-    <div>X̄–S: LCLx=${rnd(res.LCL_XS)}, UCLx=${rnd(res.UCL_XS)} | LCLs=${rnd(res.LCL_S)}, UCLs=${rnd(res.UCL_S)}</div>
-    ${ cap
-        ? `<div>Capacidad σ̂(R)=${rnd(cap.sigma_R)} → Cp=${rnd(cap.Cp_R)}, Cpk=${rnd(cap.Cpk_R)}</div>
-           <div>Capacidad σ̂(S)=${rnd(cap.sigma_S)} → Cp=${rnd(cap.Cp_S)}, Cpk=${rnd(cap.Cpk_S)}</div>`
-        : `<div class="muted">Ingrese LSL y USL para ver Cp/Cpk.</div>`
-     }
-  </div>`;
+  $('summary').innerHTML =
+    `<div class="small">
+      <div><b>m</b>=${params.m}, <b>n</b>=${params.n} <span class="muted">(orientación: ${params.mode})</span></div>
+      <div>X̄̄=${rnd(res.xbarbar)} &nbsp; R̄=${rnd(res.Rbar)} &nbsp; S̄=${rnd(res.Sbar)}</div>
+      <div>X̄–R: LCLx=${rnd(res.LCL_XR)}, UCLx=${rnd(res.UCL_XR)} | LCLr=${rnd(res.LCL_R)}, UCLr=${rnd(res.UCL_R)}</div>
+      <div>X̄–S: LCLx=${rnd(res.LCL_XS)}, UCLx=${rnd(res.UCL_XS)} | LCLs=${rnd(res.LCL_S)}, UCLs=${rnd(res.UCL_S)}</div>
+      ${ cap ? `<div>Capacidad σ̂(R)=${rnd(cap.sigma_R)} → Cp=${rnd(cap.Cp_R)}, Cpk=${rnd(cap.Cpk_R)}</div>
+                <div>Capacidad σ̂(S)=${rnd(cap.sigma_S)} → Cp=${rnd(cap.Cp_S)}, Cpk=${rnd(cap.Cpk_S)}</div>`
+             : `<div class="muted">Ingrese LSL y USL para ver Cp/Cpk.</div>`}
+    </div>`;
 
-  const o = document.getElementById('ooc');
   const fmt = a => a.length? a.join(', ') : '—';
   const anyOOC = res.ooc_R.length || res.ooc_S.length || res.ooc_XR.length || res.ooc_XS.length;
-  o.innerHTML =
+  $('ooc').innerHTML =
     `<div class="small ${anyOOC?'danger':'success'}">
        <b>${anyOOC ? '⚠ Se detectaron puntos fuera de control' : '✅ Todos los puntos están bajo control'}</b><br>
        OOC R: <b>${fmt(res.ooc_R)}</b> &nbsp;|&nbsp;
@@ -309,48 +283,81 @@ function renderAll(state){
        OOC X̄(S): <b>${fmt(res.ooc_XS)}</b>
      </div>`;
 
-  drawChart(document.getElementById('svgR'),  res.R,    res.Rbar,   res.LCL_R,  res.UCL_R);
-  drawChart(document.getElementById('svgXR'), res.xbar, res.xbarbar,res.LCL_XR, res.UCL_XR);
-  drawChart(document.getElementById('svgS'),  res.S,    res.Sbar,   res.LCL_S,  res.UCL_S);
-  drawChart(document.getElementById('svgXS'), res.xbar, res.xbarbar,res.LCL_XS, res.UCL_XS);
+  drawChart($('svgR'),  res.R,    res.Rbar,   res.LCL_R,  res.UCL_R);
+  drawChart($('svgXR'), res.xbar, res.xbarbar,res.LCL_XR, res.UCL_XR);
+  drawChart($('svgS'),  res.S,    res.Sbar,   res.LCL_S,  res.UCL_S);
+  drawChart($('svgXS'), res.xbar, res.xbarbar,res.LCL_XS, res.UCL_XS);
 
-  document.getElementById('debug').textContent = JSON.stringify(state,null,2);
+  $('debug').textContent = JSON.stringify(state,null,2);
 }
 
-async function handleCSV(){
-  const file = document.getElementById('fileCsv').files[0];
-  if(!file){ alert("Selecciona un archivo CSV."); return; }
-  const text = await file.text();
-  const matrix = parseCSV(text);
-  const {data, n, m, mode} = orientGroups(matrix);
+/* ===================== LECTURA Y EVENTOS ===================== */
+async function processFile(file){
+  $('fileStatus').textContent = `Archivo: ${file.name}`;
+  try{
+    const text = await file.text();
+    const matrix = parseCSV(text);
+    const {data, n, m, mode} = orientGroups(matrix);
 
-  const flat = data.flat();
-  const minV = Math.min(...flat), maxV = Math.max(...flat);
-  const lslEl = document.getElementById('lsl'), uslEl = document.getElementById('usl');
-  const autoLSL = (lslEl.value!=='' ? Number(lslEl.value) : minV - 0.01*(maxV-minV));
-  const autoUSL = (uslEl.value!=='' ? Number(uslEl.value) : maxV + 0.01*(maxV-minV));
+    const flat = data.flat();
+    const minV = Math.min(...flat), maxV = Math.max(...flat);
+    const lsl = $('lsl').value!=='' ? Number($('lsl').value) : (minV - 0.01*(maxV-minV));
+    const usl = $('usl').value!=='' ? Number($('usl').value) : (maxV + 0.01*(maxV-minV));
 
-  const res = computeAll(data, n, m, autoLSL, autoUSL);
-  lastState = { data, params:{n,m,lsl:autoLSL,usl:autoUSL,mode}, res };
-  document.getElementById('status').textContent = `CSV OK • m=${m}, n=${n}`;
-  renderAll(lastState);
+    const res = computeAll(data, n, m, lsl, usl);
+    lastState = { data, params:{n,m,lsl,usl,mode}, res };
+    $('status').textContent = `CSV OK • m=${m}, n=${n}`;
+    renderAll(lastState);
+  }catch(err){
+    $('status').textContent = 'Error al leer CSV';
+    $('ooc').innerHTML = `<div class="small danger"><b>❌ ${err.message}</b></div>`;
+    console.error(err);
+  }
 }
 
-/* Demo local */
-function simulate(m,n,mu=40,sigma=.5){
-  const randn=()=>{let r=0;for(let i=0;i<12;i++)r+=Math.random();return r-6;}
-  const out=[]; for(let i=0;i<m;i++){ const row=[]; for(let j=0;j<n;j++) row.push(mu+sigma*randn()); out.push(row); }
-  return out;
-}
+document.addEventListener('DOMContentLoaded', ()=>{
+  const fileInput = $('fileCsv');
+  const dropZone  = $('dropZone');
 
-document.getElementById('btnProcesar').addEventListener('click', handleCSV);
-document.getElementById('btnEjemplo').addEventListener('click', ()=>{
-  const data = simulate(25,5,40,0.5);
-  const n=5,m=25, lsl=39, usl=41;
-  const res = computeAll(data,n,m,lsl,usl);
-  lastState = { data, params:{n,m,lsl,usl,mode:"demo"}, res };
-  document.getElementById('status').textContent = `Demo local • m=${m}, n=${n}`;
-  renderAll(lastState);
+  // Botón "Generar gráficos"
+  $('btnProcesar').addEventListener('click', ()=>{
+    if(!fileInput.files.length){
+      $('ooc').innerHTML = `<div class="small danger"><b>Selecciona un CSV primero.</b></div>`;
+      return;
+    }
+    processFile(fileInput.files[0]);
+  });
+
+  // Auto-procesar al elegir archivo
+  fileInput.addEventListener('change', ()=>{
+    if(fileInput.files.length) processFile(fileInput.files[0]);
+  });
+
+  // Drag & Drop real
+  ;['dragenter','dragover'].forEach(evt=>{
+    dropZone.addEventListener(evt, e=>{ e.preventDefault(); dropZone.style.background='#f1f5f9'; });
+  });
+  ;['dragleave','drop'].forEach(evt=>{
+    dropZone.addEventListener(evt, e=>{ e.preventDefault(); dropZone.style.background=''; });
+  });
+  dropZone.addEventListener('drop', e=>{
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if(!f) return;
+    const dt = new DataTransfer(); dt.items.add(f); fileInput.files = dt.files;
+    processFile(f);
+  });
+
+  // Botón “Ejemplo”
+  $('btnEjemplo').addEventListener('click', ()=>{
+    const randn=()=>{let r=0;for(let i=0;i<12;i++)r+=Math.random();return r-6;}
+    const simulate=(m,n,mu=40,s=.5)=>Array.from({length:m},()=>Array.from({length:n},()=>mu+s*randn()));
+    const data = simulate(25,5,40,0.5);
+    const n=5,m=25, lsl=39, usl=41;
+    const res = computeAll(data,n,m,lsl,usl);
+    lastState = { data, params:{n,m,lsl,usl,mode:"demo"}, res };
+    $('status').textContent = `Demo local • m=${m}, n=${n}`;
+    renderAll(lastState);
+  });
 });
 </script>
 </body>
