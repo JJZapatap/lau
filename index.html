@@ -3,11 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Control Charts (X̄–R / X̄–S)</title>
+  <title>Aplicación de Gráficos de Control (X̄–R / X̄–S)</title>
   <style>
-    :root { --fg:#0f172a; --muted:#475569; --accent:#2563eb; --ok:#16a34a; --warn:#dc2626; --bg:#ffffff; }
+    :root{
+      --fg:#0f172a; --muted:#475569; --accent:#2563eb; --ok:#16a34a; --warn:#dc2626; --bg:#ffffff;
+      --uni-blue:#0a3a67; --gold:#d4a017;
+    }
     html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto;}
-    header{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+    /* ===== Banner U. del Magdalena ===== */
+    .uni-banner{
+      background:var(--uni-blue);
+      color:#fff;
+      padding:18px 20px 12px;
+    }
+    .uni-banner__inner{
+      max-width:1100px;margin:0 auto;
+      display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap;
+    }
+    .uni-banner__text h2{margin:0;font-size:20px;letter-spacing:.4px}
+    .uni-banner__text p{margin:4px 0 0;font-size:13px;opacity:.95}
+    .uni-banner__art{
+      max-width:180px; height:auto; display:block;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,.25));
+    }
+    .uni-banner__goldbar{height:4px;background:var(--gold);}
+
+    /* ===== App layout ===== */
+    header{padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
     h1{font-size:18px;margin:0;}
     .wrap{max-width:1100px;margin:0 auto;padding:16px;}
     .grid{display:grid;grid-template-columns:1fr;gap:16px;}
@@ -27,44 +50,64 @@
     .mt8{margin-top:8px;}
     .inputs{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     .inputs label{font-size:12px;color:#334155}
-    .inputs input{padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px}
+    .inputs input, .inputs select{padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px}
     .danger{color:var(--warn)}
     .success{color:var(--ok)}
+    .drop{border:1.5px dashed #94a3b8;border-radius:10px;padding:20px;text-align:center;color:#64748b}
   </style>
 </head>
 <body>
+
+  <!-- ===== Banner superior ===== -->
+  <div class="uni-banner">
+    <div class="uni-banner__inner">
+      <div class="uni-banner__text">
+        <h2>UNIVERSIDAD DEL MAGDALENA</h2>
+        <p>Facultad de Ingeniería Industrial · Control Estadístico de Procesos</p>
+      </div>
+      <!-- Gráfico/Ilustración -->
+      <img src="monitor.png" alt="Monitor de gráficos de control" class="uni-banner__art">
+    </div>
+    <div class="uni-banner__goldbar"></div>
+  </div>
+
+  <!-- ===== Encabezado de la app ===== -->
   <header>
-    <h1>Control Charts • X̄–R / X̄–S</h1>
-    <span class="pill">CSV local</span>
-    <span id="status" class="pill">Listo para cargar CSV</span>
+    <h1>Aplicación de Gráficos de Control</h1>
+    <span id="status" class="pill">Esperando archivo…</span>
   </header>
 
   <div class="wrap">
+    <!-- 1. Carga de datos -->
     <div class="card">
-      <div class="inputs">
-        <div>
-          <label>CSV:</label>
-          <input id="fileCsv" type="file" accept=".csv,text/csv" />
-        </div>
-        <div>
-          <label>LSL:</label>
-          <input id="lsl" type="number" step="any" placeholder="Ej. 95">
-        </div>
-        <div>
-          <label>USL:</label>
-          <input id="usl" type="number" step="any" placeholder="Ej. 105">
-        </div>
-        <button class="btn" id="btnProcesar">Procesar</button>
-        <button class="btn" id="btnEjemplo">Probar con datos ejemplo</button>
+      <h3>1. Carga de datos</h3>
+      <div class="drop">
+        Arrastra o selecciona tu archivo <b>CSV</b> aquí
+        <div class="mt8"><input id="fileCsv" type="file" accept=".csv,text/csv"></div>
       </div>
-      <p class="muted mt8">
-        Formato recomendado: cada <b>fila</b> es un subgrupo y cada columna una observación (n entre 2–10).
-        Si el archivo viene “al revés”, lo detecto y lo roto automáticamente.
-      </p>
-      <div id="summary"></div>
-      <div id="ooc"></div>
+      <p class="muted mt8">Formato recomendado: cada <b>fila</b> es un subgrupo y cada columna una observación (n entre 2–10). Si viene al revés, lo detecto y lo roto automáticamente.</p>
     </div>
 
+    <!-- 2. Configuración -->
+    <div class="card">
+      <h3>2. Configuración del gráfico</h3>
+      <div class="inputs">
+        <div>
+          <label>Límite inferior (LSL)</label><br>
+          <input id="lsl" type="number" step="any" placeholder="Ej. 39.0">
+        </div>
+        <div>
+          <label>Límite superior (USL)</label><br>
+          <input id="usl" type="number" step="any" placeholder="Ej. 41.0">
+        </div>
+        <button class="btn" id="btnProcesar">Generar gráficos</button>
+        <button class="btn" id="btnEjemplo">Probar con datos ejemplo</button>
+      </div>
+      <div id="summary" class="mt8"></div>
+      <div id="ooc" class="mt8"></div>
+    </div>
+
+    <!-- 3. Gráficos -->
     <div class="grid">
       <div class="card"><h3>Carta R</h3><svg id="svgR"></svg></div>
       <div class="card"><h3>Carta X̄ (basada en R)</h3><svg id="svgXR"></svg></div>
@@ -78,7 +121,7 @@
     </details>
   </div>
 
-  <footer class="wrap">Hecho para web estática (GitHub Pages) • Usa constantes AIAG por n (2–10).</footer>
+  <footer class="wrap">Web estática (GitHub Pages) · Constantes AIAG por n (2–10).</footer>
 
 <script>
 /* ===================== UTILIDADES ===================== */
@@ -100,7 +143,7 @@ function max(a){ return Math.max.apply(null,a); }
 function rnd(x, k=4){ return Math.round(x*Math.pow(10,k))/Math.pow(10,k); }
 function transpose(m){ return m[0].map((_,i)=>m.map(r=>r[i])); }
 
-/* ===================== PARSE CSV ===================== */
+/* ====== Parse CSV ====== */
 function detectSep(line){
   const c = {',': (line.match(/,/g)||[]).length,
              ';': (line.match(/;/g)||[]).length,
@@ -121,28 +164,27 @@ function parseCSV(text){
   });
   // eliminar filas totalmente NaN
   const filtered = rows.filter(r=>r.some(v=>Number.isFinite(v)));
-  // Normalizar: igualar largo al máximo encontrado
   const mlen = Math.max(...filtered.map(r=>r.filter(Number.isFinite).length));
   const matrix = filtered.map(r=>r.filter(Number.isFinite).slice(0, mlen));
   if(!matrix.length || !mlen) throw new Error("No se detectaron valores numéricos.");
   return matrix;
 }
 
-/* Decide orientación: filas=subgrupos si columnas (n) está en [2..10]; si no, trasponer si filas (n2) está en [2..10] */
+/* Orientación: filas=subgrupos si columnas (n) en [2..10]; si no, probar transponer */
 function orientGroups(mat){
   const m = mat.length, n = mat[0].length;
-  if(n>=2 && n<=10 && m>=2) return {data: mat, n, m, mode:"rows=subgrupos"};
+  if(n>=2 && n<=10 && m>=2) return {data: mat, n, m, mode:"filas=subgrupos"};
   const t = transpose(mat);
-  const m2 = t.length, n2 = t[0].length; // ahora filas=t.length
-  if(n2>=2 && n2<=10 && m2>=2) return {data: t, n: n2, m: m2, mode:"cols=subgrupos (transpuesto)"};
-  // como fallback: usar mat y cortar n a 10 si fuese gigante
+  const m2 = t.length, n2 = t[0].length;
+  if(n2>=2 && n2<=10 && m2>=2) return {data: t, n: n2, m: m2, mode:"columnas=subgrupos (transpuesto)"};
+  // Fallback: recortar a n=10 si es enorme
   const nFix = Math.min(n, 10);
   const fixed = mat.map(r=>r.slice(0,nFix)).filter(r=>r.length===nFix);
-  if(!(nFix>=2)) throw new Error("No se pudo determinar un tamaño de subgrupo válido (n∈[2..10]).");
+  if(!(nFix>=2)) throw new Error("No se pudo determinar n válido (2–10).");
   return {data: fixed, n:nFix, m:fixed.length, mode:"fallback"};
 }
 
-/* ===================== CÁLCULOS ===================== */
+/* ====== Cálculos CEP ====== */
 function computeAll(data, n, m, lsl, usl){
   const C = CONSTS[n];
   if(!C) throw new Error("n no soportado (use 2–10).");
@@ -170,7 +212,7 @@ function computeAll(data, n, m, lsl, usl){
   const ooc_S  = idx.filter(i=> S[i-1]  > UCL_S || S[i-1]  < LCL_S);
   const ooc_XS = idx.filter(i=> xbar[i-1] > UCL_XS || xbar[i-1] < LCL_XS);
 
-  // Capacidad (opcional, si hay LSL/USL válidos)
+  // Capacidad (si hay LSL/USL)
   let cap = null;
   if(Number.isFinite(lsl) && Number.isFinite(usl) && usl>lsl){
     const sigma_R = Rbar / C.d2;
@@ -197,7 +239,7 @@ function computeAll(data, n, m, lsl, usl){
   };
 }
 
-/* ===================== GRAFICADOR SIMPLE (SVG) ===================== */
+/* ====== Gráficos (SVG simple) ====== */
 function drawChart(svgEl, series, center, lcl, ucl){
   const w = svgEl.clientWidth, h = svgEl.clientHeight, pad=30;
   const n = series.length;
@@ -216,18 +258,16 @@ function drawChart(svgEl, series, center, lcl, ucl){
     L.setAttribute('stroke-dasharray',hdash);
     svgEl.appendChild(L);
   };
-  hline(y(center),'#22c55e','4 4');      // Media (verde punteada)
-  hline(y(lcl),'#f87171','6 4');         // LCL (rojo)
-  hline(y(ucl),'#f87171','6 4');         // UCL (rojo)
+  hline(y(center),'#22c55e','4 4');  // Media
+  hline(y(lcl),'#f87171','6 4');     // LCL
+  hline(y(ucl),'#f87171','6 4');     // UCL
 
-  // Serie
   const path=document.createElementNS(svgns,'path');
   let d=''; series.forEach((v,i)=>{ const X=x(i), Y=y(v); d+=(i===0?`M${X} ${Y}`:` L${X} ${Y}`); });
   path.setAttribute('d',d); path.setAttribute('fill','none');
   path.setAttribute('stroke','#0f766e'); path.setAttribute('stroke-width','2');
   svgEl.appendChild(path);
 
-  // Puntos
   series.forEach((v,i)=>{
     const c=document.createElementNS(svgns,'circle');
     c.setAttribute('cx',x(i)); c.setAttribute('cy',y(v));
@@ -236,28 +276,26 @@ function drawChart(svgEl, series, center, lcl, ucl){
   });
 }
 
-/* ===================== RUNTIME / UI ===================== */
+/* ====== Runtime / UI ====== */
 let lastState = null;
 
 function renderAll(state){
-  const {data, params, res} = state;
-  // Resumen
-  const s = document.getElementById('summary');
+  const {params, res} = state;
   const cap = res.capacidad;
+  const s = document.getElementById('summary');
   s.innerHTML =
   `<div class="small">
     <div><b>m</b>=${params.m}, <b>n</b>=${params.n} <span class="muted">(orientación: ${params.mode})</span></div>
     <div>X̄̄=${rnd(res.xbarbar)} &nbsp; R̄=${rnd(res.Rbar)} &nbsp; S̄=${rnd(res.Sbar)}</div>
     <div>X̄–R: LCLx=${rnd(res.LCL_XR)}, UCLx=${rnd(res.UCL_XR)} | LCLr=${rnd(res.LCL_R)}, UCLr=${rnd(res.UCL_R)}</div>
     <div>X̄–S: LCLx=${rnd(res.LCL_XS)}, UCLx=${rnd(res.UCL_XS)} | LCLs=${rnd(res.LCL_S)}, UCLs=${rnd(res.UCL_S)}</div>
-    ${
-      cap ? `<div>Capacidad σ̂(R)=${rnd(cap.sigma_R)} → Cp=${rnd(cap.Cp_R)}, Cpk=${rnd(cap.Cpk_R)}</div>
-             <div>Capacidad σ̂(S)=${rnd(cap.sigma_S)} → Cp=${rnd(cap.Cp_S)}, Cpk=${rnd(cap.Cpk_S)}</div>`
-          : `<div class="muted">Ingrese LSL y USL para ver Cp/Cpk.</div>`
-    }
+    ${ cap
+        ? `<div>Capacidad σ̂(R)=${rnd(cap.sigma_R)} → Cp=${rnd(cap.Cp_R)}, Cpk=${rnd(cap.Cpk_R)}</div>
+           <div>Capacidad σ̂(S)=${rnd(cap.sigma_S)} → Cp=${rnd(cap.Cp_S)}, Cpk=${rnd(cap.Cpk_S)}</div>`
+        : `<div class="muted">Ingrese LSL y USL para ver Cp/Cpk.</div>`
+     }
   </div>`;
 
-  // OOC
   const o = document.getElementById('ooc');
   const fmt = a => a.length? a.join(', ') : '—';
   const anyOOC = res.ooc_R.length || res.ooc_S.length || res.ooc_XR.length || res.ooc_XS.length;
@@ -270,7 +308,6 @@ function renderAll(state){
        OOC X̄(S): <b>${fmt(res.ooc_XS)}</b>
      </div>`;
 
-  // Gráficas
   drawChart(document.getElementById('svgR'),  res.R,    res.Rbar,   res.LCL_R,  res.UCL_R);
   drawChart(document.getElementById('svgXR'), res.xbar, res.xbarbar,res.LCL_XR, res.UCL_XR);
   drawChart(document.getElementById('svgS'),  res.S,    res.Sbar,   res.LCL_S,  res.UCL_S);
@@ -286,22 +323,20 @@ async function handleCSV(){
   const matrix = parseCSV(text);
   const {data, n, m, mode} = orientGroups(matrix);
 
-  // Sugerir LSL/USL si están vacíos (min/max ± 1% del rango)
   const flat = data.flat();
   const minV = Math.min(...flat), maxV = Math.max(...flat);
   const lslEl = document.getElementById('lsl'), uslEl = document.getElementById('usl');
-  const autoLSL = minV - 0.01*(maxV-minV), autoUSL = maxV + 0.01*(maxV-minV);
-  const lsl = lslEl.value!=='' ? Number(lslEl.value) : autoLSL;
-  const usl = uslEl.value!=='' ? Number(uslEl.value) : autoUSL;
+  const autoLSL = (lslEl.value!=='' ? Number(lslEl.value) : minV - 0.01*(maxV-minV));
+  const autoUSL = (uslEl.value!=='' ? Number(uslEl.value) : maxV + 0.01*(maxV-minV));
 
-  const res = computeAll(data, n, m, lsl, usl);
-  lastState = { data, params:{n,m,lsl,usl,mode}, res };
+  const res = computeAll(data, n, m, autoLSL, autoUSL);
+  lastState = { data, params:{n,m,lsl:autoLSL,usl:autoUSL,mode}, res };
   document.getElementById('status').textContent = `CSV OK • m=${m}, n=${n}`;
   renderAll(lastState);
 }
 
-/* Botón demo (por si quieres mostrar sin CSV) */
-function simulate(m,n,mu=100,sigma=2){
+/* Demo local */
+function simulate(m,n,mu=40,sigma=.5){
   const randn=()=>{let r=0;for(let i=0;i<12;i++)r+=Math.random();return r-6;}
   const out=[]; for(let i=0;i<m;i++){ const row=[]; for(let j=0;j<n;j++) row.push(mu+sigma*randn()); out.push(row); }
   return out;
@@ -309,7 +344,7 @@ function simulate(m,n,mu=100,sigma=2){
 
 document.getElementById('btnProcesar').addEventListener('click', handleCSV);
 document.getElementById('btnEjemplo').addEventListener('click', ()=>{
-  const data = simulate(25,5,40,0.5);  // parecido a tu captura
+  const data = simulate(25,5,40,0.5);
   const n=5,m=25, lsl=39, usl=41;
   const res = computeAll(data,n,m,lsl,usl);
   lastState = { data, params:{n,m,lsl,usl,mode:"demo"}, res };
@@ -319,4 +354,3 @@ document.getElementById('btnEjemplo').addEventListener('click', ()=>{
 </script>
 </body>
 </html>
-
